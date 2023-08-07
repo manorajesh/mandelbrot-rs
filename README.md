@@ -1,4 +1,8 @@
 # mandelbrot-rs
+![Build Status](https://github.com/manorajesh/mandelbrot-rs/actions/workflows/MacOS.yml/badge.svg)
+![Build Status](https://github.com/manorajesh/mandelbrot-rs/actions/workflows/Linux.yml/badge.svg)
+![Build Status](https://github.com/manorajesh/mandelbrot-rs/actions/workflows/Windows.yml/badge.svg)
+
 Rustily interact with the mandelbrot set
 
 ![Demo Picture](https://github.com/manorajesh/mandelbrot-rs/blob/master/images/demo1.png)
