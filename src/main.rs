@@ -3,8 +3,8 @@ use rayon::prelude::*;
 
 mod window;
 
-pub const WIDTH: u32 = 2880;
-pub const HEIGHT: u32 = 1440;
+pub const WIDTH: u32 = 1920;
+pub const HEIGHT: u32 = 1080;
 
 pub const XMIN: f64 = -2.5;
 pub const XMAX: f64 = 1.0;
@@ -32,13 +32,13 @@ fn get_scaled_point(px: usize, py: usize, zoom: f64, center: (f64, f64)) -> (f64
 }
 
 fn draw_mandelbrot(frame: &mut [u8], zoom: f64, center: (f64, f64)) {
-    let mut subpixels = frame.chunks_mut(4).collect::<Vec<_>>();
-    subpixels.par_iter_mut().enumerate().for_each(|(idx, pixel)| {
+    let mut subpixels = frame.par_chunks_mut(4).collect::<Vec<_>>();
+    subpixels.par_iter_mut().with_min_len(10).enumerate().for_each(|(idx, pixel)| {
         let px = idx % WIDTH as usize;
         let py = idx / WIDTH as usize;
 
         let (x0, y0) = get_scaled_point(px, py, zoom, center);
-        let iterations = calculate_pixel(0., 0., x0, y0, 600);
+        let iterations = calculate_pixel(0., 0., x0, y0, 100);
         let color = iter_to_color(iterations);
         pixel.copy_from_slice(&color);
     })
@@ -76,7 +76,8 @@ fn main() {
     let event_loop = EventLoop::new();
     let mut window = window::GameWindow::new("Mandelbrot", &event_loop).unwrap();
 
-    let mut center = ((XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0);
+    // let mut center = ((XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0);
+    let mut center = (0. , 0.);
     let mut zoom = 1.;
 
     event_loop.run(move |event, _, control_flow| {
@@ -122,7 +123,6 @@ fn main() {
                 }
                 center.0 += delta.0 as f64 / WIDTH as f64 * (XMAX - XMIN) / zoom;
                 center.1 += delta.1 as f64 / HEIGHT as f64 * (YMAX - YMIN) / zoom; // Note the subtraction here
-                println!("center: {:?}", center);
 
                 window.window.request_redraw();
             }
