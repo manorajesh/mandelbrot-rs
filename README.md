@@ -1,6 +1,8 @@
 # mandelbrot-rs
 Rustily interact with the mandelbrot set
 
+![Demo Picture](https://github.com/manorajesh/mandelbrot-rs/blob/master/images/demo.png)
+
 ## Installation
 ```shell
 git clone https://github.com/manorajesh/mandelbrot-rs.git && cd mandelbrot-rs
