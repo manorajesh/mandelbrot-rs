@@ -1,7 +1,7 @@
 # mandelbrot-rs
 Rustily interact with the mandelbrot set
 
-![Demo Picture](https://github.com/manorajesh/mandelbrot-rs/blob/master/images/demo.png)
+![Demo Picture](https://github.com/manorajesh/mandelbrot-rs/blob/master/images/demo1.png)
 
 ## Installation
 ```shell
