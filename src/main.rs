@@ -3,8 +3,8 @@ use rayon::prelude::*;
 
 mod window;
 
-pub const WIDTH: u32 = 1280;
-pub const HEIGHT: u32 = 720;
+pub const WIDTH: u32 = 2880;
+pub const HEIGHT: u32 = 1440;
 
 pub const XMIN: f64 = -2.5;
 pub const XMAX: f64 = 1.0;
@@ -117,7 +117,7 @@ fn main() {
                 event: DeviceEvent::MouseMotion { delta },
                 ..
             } => {
-                if center.0.is_infinite() || center.1.is_infinite() {
+                if !center.0.is_normal() || !center.1.is_normal() {
                     center = ((XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0);
                 }
                 center.0 += delta.0 as f64 / WIDTH as f64 * (XMAX - XMIN) / zoom;
