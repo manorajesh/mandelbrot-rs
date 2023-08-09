@@ -1,5 +1,6 @@
-use winit::{event::{Event, DeviceEvent, WindowEvent}, event_loop::EventLoop};
+use winit::{event::{Event, DeviceEvent, WindowEvent, VirtualKeyCode}, event_loop::EventLoop};
 use rayon::prelude::*;
+use image::{ImageBuffer, Rgba};
 
 mod window;
 
@@ -10,6 +11,8 @@ pub const XMIN: f64 = -2.5;
 pub const XMAX: f64 = 1.0;
 pub const YMIN: f64 = -1.0;
 pub const YMAX: f64 = 1.0;
+
+const MAX_ITER_PREVIEW: usize = 600;
 
 fn calculate_pixel(mut x: f64, mut y:f64, x0: f64, y0: f64, max_iterations: usize) -> usize {
     let mut iterations = 0;
@@ -31,14 +34,14 @@ fn get_scaled_point(px: usize, py: usize, zoom: f64, center: (f64, f64)) -> (f64
     (scale_x, scale_y)
 }
 
-fn draw_mandelbrot(frame: &mut [u8], zoom: f64, center: (f64, f64)) {
+fn draw_mandelbrot(frame: &mut [u8], zoom: f64, center: (f64, f64), max_iterations: usize) {
     let mut subpixels = frame.par_chunks_mut(4).collect::<Vec<_>>();
     subpixels.par_iter_mut().with_min_len(10).enumerate().for_each(|(idx, pixel)| {
         let px = idx % WIDTH as usize;
         let py = idx / WIDTH as usize;
 
         let (x0, y0) = get_scaled_point(px, py, zoom, center);
-        let iterations = calculate_pixel(0., 0., x0, y0, 100);
+        let iterations = calculate_pixel(0., 0., x0, y0, max_iterations);
         let color = iter_to_color(iterations);
         pixel.copy_from_slice(&color);
     })
@@ -71,6 +74,23 @@ fn hsv_to_rgb(h: f64, s: f64, v: f64) -> [u8; 4] {
     [((r + m) * 255.0) as u8, ((g + m) * 255.0) as u8, ((b + m) * 255.0) as u8, 255]
 }
 
+fn take_snapshot(center: (f64, f64), zoom: f64) {
+    const SNAPSHOT_WIDTH: u32 = 3840;  // For example, 4K resolution width
+    const SNAPSHOT_HEIGHT: u32 = 2160; // For example, 4K resolution height
+    const SNAPSHOT_MAX_ITER: usize = 1000; // Increased iteration count for more detail
+
+    let mut buffer: Vec<u8> = vec![0; (SNAPSHOT_WIDTH * SNAPSHOT_HEIGHT * 4) as usize];
+
+    draw_mandelbrot(&mut buffer, zoom, center, SNAPSHOT_MAX_ITER);
+    
+    save_to_image(&buffer, SNAPSHOT_WIDTH, SNAPSHOT_HEIGHT);
+}
+
+
+fn save_to_image(buffer: &[u8], width: u32, height: u32) {
+    let img = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, buffer).unwrap();
+    img.save("snapshot.png").unwrap();
+}
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -84,7 +104,7 @@ fn main() {
         match event {
             Event::RedrawRequested(_) => {
                 let frame = window.pixels.frame_mut();
-                draw_mandelbrot(frame, zoom, center);
+                draw_mandelbrot(frame, zoom, center, MAX_ITER_PREVIEW);
                 window.pixels.render().unwrap();
             }
 
@@ -126,6 +146,28 @@ fn main() {
 
                 window.window.request_redraw();
             }
+
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput {
+                    input,
+                    ..
+                },
+                ..
+            } => {
+                if let Some(keycode) = input.virtual_keycode {
+                    match keycode {
+                        VirtualKeyCode::Space => {
+                            take_snapshot(center, zoom);
+                        },
+
+                        VirtualKeyCode::Escape => {
+                            *control_flow = winit::event_loop::ControlFlow::Exit;
+                        },
+
+                        _ => {}
+                    }
+                }
+            },
             
             _ => {}
         }
