@@ -26,17 +26,13 @@ struct State {
     uniforms: Uniforms,
     uniforms_buffer: wgpu::Buffer,
     uniforms_bind_group: wgpu::BindGroup,
+    window_cursor_config: WindowCursorConfig,
 }
 
 impl State {
     // Creating some of the wgpu types requires async code
     async fn new(window: Window) -> Self {
         let size = window.inner_size();
-        window
-            .set_cursor_grab(CursorGrabMode::Confined)
-            .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
-            .unwrap();
-        window.set_cursor_visible(false);
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -196,6 +192,16 @@ impl State {
             multiview: None,
         });
 
+        let window_cursor_config = WindowCursorConfig {
+            cursor_visible: false,
+        };
+
+        window
+            .set_cursor_grab(CursorGrabMode::Confined)
+            .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+            .unwrap();
+        window.set_cursor_visible(false);
+
         Self {
             window,
             surface,
@@ -211,6 +217,7 @@ impl State {
             uniforms,
             uniforms_buffer,
             uniforms_bind_group,
+            window_cursor_config,
         }
     }
 
@@ -228,8 +235,26 @@ impl State {
         }
     }
 
-    fn input(&mut self, event: &Event<'_, ()>) -> bool {
-        self.uniforms.process_events(event)
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput {
+                    virtual_keycode: Some(VirtualKeyCode::Space),
+                    state: ElementState::Pressed,
+                    ..
+                },
+                ..
+            } => {
+                self.window.set_cursor_visible(self.window_cursor_config.cursor_visible.toggle());
+                match self.window_cursor_config.cursor_visible {
+                    true => self.window.set_cursor_grab(CursorGrabMode::None).unwrap(),
+                    false => self.window.set_cursor_grab(CursorGrabMode::Confined).unwrap(),
+                }
+                true
+            },
+
+            _ => self.uniforms.process_events(event),
+        }
     }
 
     fn update(&mut self) {
@@ -328,6 +353,7 @@ struct Uniforms {
     zoom: f32,
     center_x: f32,
     center_y: f32,
+    max_iterations: i32,
 }
 
 impl Uniforms {
@@ -338,15 +364,13 @@ impl Uniforms {
             zoom: 1.0,
             center_x: 0.0,
             center_y: 0.0,
+            max_iterations: 200,
         }
     }
 
-    fn process_events(&mut self, event: &Event<'_, ()>) -> bool {
+    fn process_events(&mut self, event: &WindowEvent) -> bool {
         match event {
-            Event::WindowEvent { 
-                event: WindowEvent::MouseWheel { delta, .. },
-                ..
-            } => {
+            WindowEvent::MouseWheel { delta, .. } => {
                 match delta {
                     winit::event::MouseScrollDelta::LineDelta(_, y) => {
                         self.zoom *= 1. + y * 0.1;
@@ -357,6 +381,33 @@ impl Uniforms {
                 }
             }
 
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput {
+                    virtual_keycode: Some(key),
+                    state: ElementState::Pressed,
+                    ..
+                },
+                ..
+            } => match key {
+                VirtualKeyCode::Up => {
+                    self.max_iterations *= 2;
+
+                    true
+                }
+
+                VirtualKeyCode::Down => {
+                    if self.max_iterations > 2 {
+                        self.max_iterations /= 2;
+                    } else {
+                        self.max_iterations = 1;
+                    }
+
+                    true
+                }
+
+                _ => false,
+            },
+
             _ => false,
         }
     }
@@ -364,6 +415,21 @@ impl Uniforms {
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.width = new_size.width as f32;
         self.height = new_size.height as f32;
+    }
+}
+
+struct WindowCursorConfig {
+    cursor_visible: bool,
+}
+
+trait Toggle {
+    fn toggle(&mut self) -> Self;
+}
+
+impl Toggle for bool {
+    fn toggle(&mut self) -> Self {
+        *self = !*self;
+        *self
     }
 }
 
@@ -395,10 +461,10 @@ pub async fn run() {
             }
 
             Event::WindowEvent {
-                event: ref new_event,
+                ref event,
                 window_id,
-            } if window_id == state.window().id() => if !state.input(&event) { // UPDATED!
-                match new_event {
+            } if window_id == state.window().id() => if !state.input(event) { // UPDATED!
+                match event {
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
                         input:
@@ -426,9 +492,15 @@ pub async fn run() {
                 event: DeviceEvent::MouseMotion { delta },
                 ..
             } => {
-                // if !state.uniforms.center_x.is_normal() || !state.uniforms.center_y.is_normal() {
-                //     state.uniforms.center = [(XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0];
-                // }
+                if !state.uniforms.center_x.is_normal() || !state.uniforms.center_y.is_normal() {
+                    state.uniforms.center_x = (XMAX + XMIN) / 2.0;
+                    state.uniforms.center_y = (YMAX + YMIN) / 2.0;
+                }
+
+                if state.window_cursor_config.cursor_visible {
+                    return;
+                }
+
                 state.uniforms.center_x += delta.0 as f32 / state.uniforms.width * (XMAX - XMIN) / state.uniforms.zoom;
                 state.uniforms.center_y += delta.1 as f32 / state.uniforms.height * (YMAX - YMIN) / state.uniforms.zoom; // Note the subtraction here
             }
