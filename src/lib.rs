@@ -364,7 +364,7 @@ impl Uniforms {
             zoom: 1.0,
             center_x: 0.0,
             center_y: 0.0,
-            max_iterations: 200,
+            max_iterations: 20000,
         }
     }
 

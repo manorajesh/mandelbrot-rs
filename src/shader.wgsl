@@ -43,16 +43,22 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let scale = vec2<f32>((XMAX - XMIN) / u.zoom / u.width, (YMAX - YMIN) / u.zoom / u.height);
     let c = in.clip_position.xy * scale + vec2<f32>(u.center_x, u.center_y);
     var z = vec2<f32>(0.0, 0.0);
+    var dz = vec2<f32>(1.0, 0.0);
     var iterations = 0;
 
     while iterations < u.max_iterations && dot(z, z) <= 4.0 {
+        dz = 2.0 * vec2<f32>(z.x*dz.x - z.y*dz.y, z.x*dz.y + z.y*dz.x) + vec2<f32>(1.0, 0.0);
         z = vec2<f32>(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
         iterations = iterations + 1;
     }
 
-    let normalized_iter = f32(iterations) / f32(u.max_iterations);
-    let hue = normalized_iter * 0.5;
-    let color = hsv_to_rgb(hue, 1.0, 0.7);
+    let escape_magnitude = length(z);
+    let distance = 0.5 * escape_magnitude * log(escape_magnitude) / length(dz);
+    
+    // Convert distance to color or other visual effects here
+    // let color = hsv_to_rgb(distance%1.0, 1.0, 1.0); 
+    let color = vec3<f32>(distance, distance, distance);  // Grayscale
+
 
     return vec4<f32>(color, 1.0);
 }
