@@ -12,6 +12,16 @@ struct FragmentInput {
     @builtin(position) clip_position: vec4<f32>,
 };
 
+struct Uniforms {
+    width: f32,
+    height: f32,
+    zoom: f32,
+    center: vec2<f32>,
+}
+
+@group(0) @binding(0)
+var<uniform> u: Uniforms;
+
 @vertex
 fn vs_main(
     model: VertexInput,
@@ -24,16 +34,14 @@ fn vs_main(
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let max_iterations = 1000;  // Or some appropriate value
-    let zoom: f32 = 1.0;  // Adjust as needed
-    // let center: vec2<f32> = vec2<f32>(0.0, 0.0);  // Center of the Mandelbrot view
     let XMIN = -2.5;  // Adjust to your actual Mandelbrot coordinates
     let XMAX = 1.0;  // Adjust to your actual Mandelbrot coordinates
     let YMIN = -1.0;  // Adjust to your actual Mandelbrot coordinates
     let YMAX = 1.0;  // Adjust to your actual Mandelbrot coordinates
 
     // Scale to fit the Mandelbrot coordinates
-    let x0 = (in.clip_position[0] / 1000.0) * (XMAX - XMIN) / zoom; //+ center[0];
-    let y0 = (in.clip_position[1] / 1000.0) * (YMAX - YMIN) / zoom; //+ center[1];
+    let x0 = (in.clip_position[0] / u.width) * (XMAX - XMIN) / u.zoom + u.center[0];
+    let y0 = (in.clip_position[1] / u.height) * (YMAX - YMIN) / u.zoom + u.center[1];
 
     var x = 0.0;
     var y = 0.0;

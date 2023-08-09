@@ -2,7 +2,7 @@ use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, Window},
+    window::{WindowBuilder, Window}, dpi::PhysicalSize,
 };
 use bytemuck;
 
@@ -18,6 +18,9 @@ struct State {
     num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    uniforms: Uniforms,
+    uniforms_buffer: wgpu::Buffer,
+    uniforms_bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -76,12 +79,71 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        // Creating vertex buffer
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+        let num_vertices = VERTICES.len() as u32;
+
+        // Create index buffer for better memory use
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(INDICES),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+        let num_indices = INDICES.len() as u32;
+
+        // Create Uniforms buffer
+        let uniforms = Uniforms::new(window.inner_size());
+        let uniforms_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Uniforms Buffer"),
+                contents: bytemuck::cast_slice(&[uniforms]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let uniforms_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("uniforms_bind_group_layout"),
+        });
+        
+        let uniforms_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &uniforms_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniforms_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("uniforms_bind_group"),
+        });
+        
         // Configuring render pipeline with shader code
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         let render_pipeline_layout = 
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[
+                    &uniforms_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -124,26 +186,6 @@ impl State {
             multiview: None,
         });
 
-        // Creating vertex buffer
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(VERTICES),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
-        let num_vertices = VERTICES.len() as u32;
-
-        // Create index buffer for better memory use
-        let index_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(INDICES),
-                usage: wgpu::BufferUsages::INDEX,
-            }
-        );
-        let num_indices = INDICES.len() as u32;
-
         Self {
             window,
             surface,
@@ -156,6 +198,9 @@ impl State {
             num_vertices,
             index_buffer,
             num_indices,
+            uniforms,
+            uniforms_buffer,
+            uniforms_bind_group,
         }
     }
 
@@ -207,8 +252,11 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+
+            render_pass.set_bind_group(0, &self.uniforms_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
     
@@ -260,6 +308,61 @@ const INDICES: &[u16] = &[
     0, 1, 2,  // First triangle (bottom-left, bottom-right, top-right)
     2, 3, 0   // Second triangle (top-right, top-left, bottom-left)
 ];
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Uniforms {
+    width: f32,
+    height: f32,
+    zoom: f32,
+    center: [f32; 2],
+    _pad: [f32; 1], // Add padding to ensure correct buffer size
+}
+
+impl Uniforms {
+    fn new(inner_size: PhysicalSize<u32>) -> Self {
+        Self {
+            width: inner_size.width as f32,
+            height: inner_size.height as f32,
+            zoom: 1.0,
+            center: [0.0, 0.0],
+            _pad: [0.0],
+        }
+    }
+
+    fn process_events(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::MouseWheel {
+                delta,
+                ..
+            } => {
+                match delta {
+                    winit::event::MouseScrollDelta::LineDelta(_, y) => {
+                        self.zoom *= 1. + y * 0.1;
+
+                        true
+                    }
+                    _ => false,
+                }
+            }
+
+            // Event::DeviceEvent {
+            //     event: DeviceEvent::MouseMotion { delta },
+            //     ..
+            // } => {
+            //     if !center.0.is_normal() || !center.1.is_normal() {
+            //         center = ((XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0);
+            //     }
+            //     center.0 += delta.0 as f64 / WIDTH as f64 * (XMAX - XMIN) / zoom;
+            //     center.1 += delta.1 as f64 / HEIGHT as f64 * (YMAX - YMIN) / zoom; // Note the subtraction here
+
+            //     window.window.request_redraw();
+            // }
+
+            _ => false,
+        }
+    }
+}
 
 pub async fn run() {
     env_logger::init();
