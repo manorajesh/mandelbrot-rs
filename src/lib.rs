@@ -28,7 +28,7 @@ impl State {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::DX12,
+            backends: wgpu::Backends::all(),
             dx12_shader_compiler: Default::default(),
         });
 
@@ -250,15 +250,15 @@ impl Vertex {
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [-1.0, 1.0, 0.0], color: [1.0, 1.0, 1.0] },
-    Vertex { position: [1.0, 1.0, 0.0], color: [1.0, 1.0, 1.0] },
-    Vertex { position: [1.0, -1.0, 0.0], color: [1.0, 1.0, 1.0] },
-    Vertex { position: [-1.0, -1.0, 0.0], color: [1.0, 1.0, 1.0] },
+    Vertex { position: [-1.0, -1.0, 0.0], color: [0.5, 0.0, 0.5] }, // Bottom-left
+    Vertex { position: [ 1.0, -1.0, 0.0], color: [0.5, 0.0, 0.5] }, // Bottom-right
+    Vertex { position: [ 1.0,  1.0, 0.0], color: [0.5, 0.0, 0.5] }, // Top-right
+    Vertex { position: [-1.0,  1.0, 0.0], color: [0.5, 0.0, 0.5] }, // Top-left
 ];
 
 const INDICES: &[u16] = &[
-    0, 1, 2,
-    2, 3, 0,
+    0, 1, 2,  // First triangle (bottom-left, bottom-right, top-right)
+    2, 3, 0   // Second triangle (top-right, top-left, bottom-left)
 ];
 
 pub async fn run() {
