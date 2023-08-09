@@ -40,31 +40,22 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let YMIN = -1.0;
     let YMAX = 1.0;
 
-    let x0 = (in.clip_position[0] / u.width) * (XMAX - XMIN) / u.zoom + u.center_x;
-    let y0 = (in.clip_position[1] / u.height) * (YMAX - YMIN) / u.zoom + u.center_y;
-
-    var x = 0.0;
-    var y = 0.0;
+    let scale = vec2<f32>((XMAX - XMIN) / u.zoom / u.width, (YMAX - YMIN) / u.zoom / u.height);
+    let c = in.clip_position.xy * scale + vec2<f32>(u.center_x, u.center_y);
+    var z = vec2<f32>(0.0, 0.0);
     var iterations = 0;
-    var x2 = 0.0;
-    var y2 = 0.0;
 
-    while x2 + y2 <= 4.0 && iterations < u.max_iterations {
-        y = 2.0 * x * y + y0;
-        x = x2 - y2 + x0;
-        x2 = x * x;
-        y2 = y * y;
+    while iterations < u.max_iterations && dot(z, z) <= 4.0 {
+        z = vec2<f32>(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
         iterations = iterations + 1;
     }
 
     let normalized_iter = f32(iterations) / f32(u.max_iterations);
     let hue = normalized_iter * 0.5;
-
-    let color = hsv_to_rgb(hue, 1.0, 0.7); // Using a fast hsv_to_rgb function will also help
+    let color = hsv_to_rgb(hue, 1.0, 0.7);
 
     return vec4<f32>(color, 1.0);
 }
-
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> vec3<f32> {
     let c = v * s;
