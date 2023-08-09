@@ -2,9 +2,14 @@ use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, Window}, dpi::PhysicalSize,
+    window::{WindowBuilder, Window, CursorGrabMode}, dpi::PhysicalSize,
 };
 use bytemuck;
+
+const XMIN: f32 = -2.5;
+const XMAX: f32 = 1.0;
+const YMIN: f32 = -1.0;
+const YMAX: f32 = 1.0;
 
 struct State {
     surface: wgpu::Surface,
@@ -15,7 +20,7 @@ struct State {
     window: Window,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
+    _num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     uniforms: Uniforms,
@@ -27,6 +32,11 @@ impl State {
     // Creating some of the wgpu types requires async code
     async fn new(window: Window) -> Self {
         let size = window.inner_size();
+        window
+            .set_cursor_grab(CursorGrabMode::Confined)
+            .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+            .unwrap();
+        window.set_cursor_visible(false);
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -195,7 +205,7 @@ impl State {
             size,
             render_pipeline,
             vertex_buffer,
-            num_vertices,
+            _num_vertices: num_vertices,
             index_buffer,
             num_indices,
             uniforms,
@@ -214,18 +224,19 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.uniforms.resize(new_size);
         }
     }
 
-    fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    fn input(&mut self, event: &Event<'_, ()>) -> bool {
+        self.uniforms.process_events(event)
     }
 
     fn update(&mut self) {
-        // todo!()
+        self.queue.write_buffer(&self.uniforms_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
     }
 
-    fn render(&mut self, color: [f64; 4]) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -240,10 +251,10 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: color[0],
-                            g: color[1],
-                            b: color[2],
-                            a: color[3],
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.0,
                         }),
                         store: true,
                     },
@@ -315,8 +326,8 @@ struct Uniforms {
     width: f32,
     height: f32,
     zoom: f32,
-    center: [f32; 2],
-    _pad: [f32; 1], // Add padding to ensure correct buffer size
+    center_x: f32,
+    center_y: f32,
 }
 
 impl Uniforms {
@@ -325,15 +336,15 @@ impl Uniforms {
             width: inner_size.width as f32,
             height: inner_size.height as f32,
             zoom: 1.0,
-            center: [0.0, 0.0],
-            _pad: [0.0],
+            center_x: 0.0,
+            center_y: 0.0,
         }
     }
 
-    fn process_events(&mut self, event: &WindowEvent) -> bool {
+    fn process_events(&mut self, event: &Event<'_, ()>) -> bool {
         match event {
-            WindowEvent::MouseWheel {
-                delta,
+            Event::WindowEvent { 
+                event: WindowEvent::MouseWheel { delta, .. },
                 ..
             } => {
                 match delta {
@@ -342,25 +353,17 @@ impl Uniforms {
 
                         true
                     }
-                    _ => false,
+                    _ => false
                 }
             }
 
-            // Event::DeviceEvent {
-            //     event: DeviceEvent::MouseMotion { delta },
-            //     ..
-            // } => {
-            //     if !center.0.is_normal() || !center.1.is_normal() {
-            //         center = ((XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0);
-            //     }
-            //     center.0 += delta.0 as f64 / WIDTH as f64 * (XMAX - XMIN) / zoom;
-            //     center.1 += delta.1 as f64 / HEIGHT as f64 * (YMAX - YMIN) / zoom; // Note the subtraction here
-
-            //     window.window.request_redraw();
-            // }
-
             _ => false,
         }
+    }
+
+    fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        self.width = new_size.width as f32;
+        self.height = new_size.height as f32;
     }
 }
 
@@ -370,13 +373,12 @@ pub async fn run() {
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let mut state = State::new(window).await;
-    let mut color = [0.0, 0.0, 0.0, 1.0];
 
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::RedrawRequested(window_id) if window_id == state.window().id() => {
                 state.update();
-                match state.render(color) {
+                match state.render() {
                     Ok(_) => {}
                     // Reconfigure the surface if lost
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
@@ -393,10 +395,10 @@ pub async fn run() {
             }
 
             Event::WindowEvent {
-                ref event,
+                event: ref new_event,
                 window_id,
-            } if window_id == state.window().id() => if !state.input(event) { // UPDATED!
-                match event {
+            } if window_id == state.window().id() => if !state.input(&event) { // UPDATED!
+                match new_event {
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
                         input:
@@ -416,17 +418,21 @@ pub async fn run() {
                         state.resize(**new_inner_size);
                     }
 
-                    WindowEvent::CursorMoved { position, .. } => {
-                        color = [
-                            position.x / state.size.width as f64,
-                            position.y / state.size.height as f64,
-                            position.x / state.size.width as f64,
-                            1.0,
-                        ];
-                    }
                     _ => {}
                 }
             }
+
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion { delta },
+                ..
+            } => {
+                // if !state.uniforms.center_x.is_normal() || !state.uniforms.center_y.is_normal() {
+                //     state.uniforms.center = [(XMAX + XMIN) / 2.0, (YMAX + YMIN) / 2.0];
+                // }
+                state.uniforms.center_x += delta.0 as f32 / state.uniforms.width * (XMAX - XMIN) / state.uniforms.zoom;
+                state.uniforms.center_y += delta.1 as f32 / state.uniforms.height * (YMAX - YMIN) / state.uniforms.zoom; // Note the subtraction here
+            }
+
             _ => {}
         }
     });

@@ -16,7 +16,8 @@ struct Uniforms {
     width: f32,
     height: f32,
     zoom: f32,
-    center: vec2<f32>,
+    center_x: f32,
+    center_y: f32,
 }
 
 @group(0) @binding(0)
@@ -33,15 +34,15 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    let max_iterations = 1000;  // Or some appropriate value
+    let max_iterations = 10000;  // Or some appropriate value
     let XMIN = -2.5;  // Adjust to your actual Mandelbrot coordinates
     let XMAX = 1.0;  // Adjust to your actual Mandelbrot coordinates
     let YMIN = -1.0;  // Adjust to your actual Mandelbrot coordinates
     let YMAX = 1.0;  // Adjust to your actual Mandelbrot coordinates
 
     // Scale to fit the Mandelbrot coordinates
-    let x0 = (in.clip_position[0] / u.width) * (XMAX - XMIN) / u.zoom + u.center[0];
-    let y0 = (in.clip_position[1] / u.height) * (YMAX - YMIN) / u.zoom + u.center[1];
+    let x0 = (in.clip_position[0] / u.width) * (XMAX - XMIN) / u.zoom + u.center_x;
+    let y0 = (in.clip_position[1] / u.height) * (YMAX - YMIN) / u.zoom + u.center_y;
 
     var x = 0.0;
     var y = 0.0;
