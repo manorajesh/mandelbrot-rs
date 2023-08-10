@@ -5,6 +5,7 @@ use winit::{
     window::{WindowBuilder, Window, CursorGrabMode}, dpi::PhysicalSize,
 };
 use bytemuck;
+use log::info;
 
 const XMIN: f32 = -2.5;
 const XMAX: f32 = 1.0;
@@ -250,6 +251,8 @@ impl State {
                     true => self.window.set_cursor_grab(CursorGrabMode::None).unwrap(),
                     false => self.window.set_cursor_grab(CursorGrabMode::Confined).unwrap(),
                 }
+                info!("Space pressed: cursor_visible: {}", self.window_cursor_config.cursor_visible);
+
                 true
             },
 
@@ -391,7 +394,8 @@ impl Uniforms {
             } => match key {
                 VirtualKeyCode::Up => {
                     self.max_iterations *= 2;
-
+                    info!("max_iterations: {}", self.max_iterations);
+                    
                     true
                 }
 
@@ -401,6 +405,7 @@ impl Uniforms {
                     } else {
                         self.max_iterations = 1;
                     }
+                    info!("max_iterations: {}", self.max_iterations);
 
                     true
                 }
