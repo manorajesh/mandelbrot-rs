@@ -507,7 +507,7 @@ pub async fn run() {
                 }
 
                 state.uniforms.center_x += delta.0 as f32 / state.uniforms.width * (XMAX - XMIN) / state.uniforms.zoom;
-                state.uniforms.center_y += delta.1 as f32 / state.uniforms.height * (YMAX - YMIN) / state.uniforms.zoom; // Note the subtraction here
+                state.uniforms.center_y += delta.1 as f32 / state.uniforms.height * (YMAX - YMIN) / state.uniforms.zoom;
             }
 
             _ => {}
